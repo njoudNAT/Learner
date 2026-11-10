@@ -15,7 +15,7 @@ struct RootView: View {
     var body: some View {
         ZStack {
             if let goal = goals.first {
-                ActivityPlaceholder(goal: goal)
+                ActivityView(goal: goal)
                     .transition(.opacity)
             } else {
                 OnboardingView()
@@ -23,23 +23,5 @@ struct RootView: View {
             }
         }
         .animation(.smooth, value: goals.isEmpty)
-    }
-}
-
-/// Temporary. We replace this with the real Activity page next.
-private struct ActivityPlaceholder: View {
-    let goal: Goal
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 8) {
-                Text("Learning \(goal.title)")
-                    .font(.title2.bold())
-                Text("in a \(goal.duration.title.lowercased())")
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle("Activity")
-        }
     }
 }

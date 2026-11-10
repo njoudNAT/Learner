@@ -1,0 +1,120 @@
+//
+//  Components.swift
+//  Learner
+//
+//  Created by Njoud Altalal on 30/05/1448 AH.
+//
+import SwiftUI
+
+// MARK: - Goal form (shared by Onboarding and the Learning Goal page)
+
+/// "I want to learn ___" + "I want to learn it in a Week / Month / Year".
+/// One component, so both pages always look and behave identically.
+struct GoalFormFields: View {
+    @Binding var title: String
+    @Binding var duration: GoalDuration
+    var isFocused: FocusState<Bool>.Binding
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 32) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("I want to learn")
+                    .font(.subheadline)
+
+                TextField("Swift", text: $title)
+                    .focused(isFocused)
+                    .submitLabel(.done)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .onSubmit { isFocused.wrappedValue = false }
+                    .onChange(of: title) { _, newValue in
+                        if newValue.count > 40 { title = String(newValue.prefix(40)) }
+                    }
+
+                Divider()
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("I want to learn it in a")
+                    .font(.subheadline)
+
+                // The container lets neighbouring glass shapes blend and animate together.
+                GlassEffectContainer(spacing: 10) {
+                    HStack(spacing: 10) {
+                        ForEach(GoalDuration.allCases) { option in
+                            DurationChip(title: option.title, isSelected: duration == option) {
+                                withAnimation(.snappy) { duration = option }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct DurationChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(
+            isSelected
+                ? .regular.tint(Color.brandOrange).interactive()
+                : .regular.interactive(),
+            in: .capsule
+        )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+// MARK: - Day circle (week strip and calendar)
+
+struct DayBubble: View {
+    let day: Date
+    let isToday: Bool
+    let type: EntryType?
+
+    var body: some View {
+        Text(day, format: .dateTime.day())
+            .font(.callout.weight(.medium))
+            .foregroundStyle(foreground)
+            .frame(width: 34, height: 34)
+            .background(background, in: Circle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(day.formatted(.dateTime.day().month(.wide)))\(stateWord)")
+    }
+
+    private var stateWord: String {
+        switch type {
+        case .learned: ", learned"
+        case .frozen:  ", freezed"
+        case nil:      isToday ? ", today" : ""
+        }
+    }
+
+    private var foreground: Color {
+        switch type {
+        case .learned: Color.brandOrange
+        case .frozen:  Color.brandFreezeBlue
+        case nil:      isToday ? Color.white : Color.primary
+        }
+    }
+
+    private var background: Color {
+        switch type {
+        case .learned: Color.brandOrange.opacity(0.22)
+        case .frozen:  Color.brandFreezeBlue.opacity(0.22)
+        case nil:      isToday ? Color.brandOrange : Color.clear
+        }
+    }
+}

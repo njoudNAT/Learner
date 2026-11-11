@@ -2,15 +2,18 @@
 import SwiftUI
 import SwiftData
 
-/// Activities screen. View only: nothing can be tapped or edited.
+/// "Activities" (Task 5). View only: nothing on this screen can be tapped or edited.
+
 struct CalendarView: View {
     let now: Date
 
+    // All history across every goal, so old days never disappear.
     @Query(sort: \DayEntry.day) private var entries: [DayEntry]
 
     @State private var position: Date?
 
     private let viewModel = CalendarViewModel()
+    private let calendar = Calendar.current
 
     init(now: Date) {
         self.now = now
@@ -19,21 +22,19 @@ struct CalendarView: View {
         let current = calendar.dateInterval(of: .month, for: now)?.start
             ?? calendar.startOfDay(for: now)
 
+        // Opens on the current month.
         _position = State<Date?>(initialValue: current)
     }
 
     var body: some View {
-        let types = viewModel.typeByDay(from: entries)
-        let months = viewModel.monthStarts(from: entries, now: now)
+        let types = viewModel.typeByDay(entries: entries)
+        let months = viewModel.monthStarts(now: now, entries: entries)
 
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(months.enumerated()), id: \.element) { index, month in
                     VStack(alignment: .leading, spacing: 0) {
-                        if index > 0 {
-                            Divider()
-                        }
-
+                        if index > 0 { Divider() } // line between months only
                         MonthSection(month: month, now: now, types: types)
                     }
                     .id(month)
@@ -61,6 +62,7 @@ private struct MonthSection: View {
         count: 7
     )
 
+    /// Empty cells before the 1st, based on the user's first weekday.
     private var leadingBlanks: Int {
         (calendar.component(.weekday, from: month) - calendar.firstWeekday + 7) % 7
     }
@@ -69,11 +71,13 @@ private struct MonthSection: View {
         calendar.range(of: .day, in: .month, for: month)?.count ?? 30
     }
 
+    /// SUN MON TUE WED THU FRI SAT, starting at the user's first weekday.
     private var weekdaySymbols: [String] {
         let symbols = calendar.shortWeekdaySymbols
         let shift = calendar.firstWeekday - 1
-        return Array(symbols[shift...] + symbols[..<shift])
-            .map { $0.uppercased() }
+        return Array(symbols[shift...] + symbols[..<shift]).map {
+            $0.uppercased()
+        }
     }
 
     private func date(_ number: Int) -> Date {
@@ -87,6 +91,7 @@ private struct MonthSection: View {
                 .padding(.horizontal, 20)
                 .accessibilityAddTraits(.isHeader)
 
+            // Weekday labels are repeated in every month, as in the Sketch.
             HStack(spacing: 0) {
                 ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
@@ -120,7 +125,7 @@ private struct MonthSection: View {
     }
 }
 
-// MARK: - One day
+// MARK: - One day (not tappable)
 
 private struct CalendarDay: View {
     let date: Date
@@ -135,9 +140,7 @@ private struct CalendarDay: View {
             .background(DayStyle.background(type, isToday: isToday), in: Circle())
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                "\(date.formatted(.dateTime.day().month(.wide)))\(stateWord)"
-            )
+            .accessibilityLabel("\(date.formatted(.dateTime.day().month(.wide)))\(stateWord)")
     }
 
     private var stateWord: String {
@@ -149,7 +152,7 @@ private struct CalendarDay: View {
     }
 }
 
-// MARK: - Preview
+// MARK: - Preview (recreates the data in your Sketch: today is 12 March 2026)
 
 #Preview("Calendar") {
     let container = try! ModelContainer(
@@ -158,7 +161,6 @@ private struct CalendarDay: View {
     )
 
     let calendar = Calendar.current
-
     let date = { (month: Int, day: Int) -> Date in
         calendar.date(
             from: DateComponents(year: 2026, month: month, day: day, hour: 12)
@@ -174,18 +176,13 @@ private struct CalendarDay: View {
         entry.goal = goal
     }
 
-    for day in 1...11 {
-        add(1, day, .learned)
-    }
-
+    for day in 1...11 { add(1, day, .learned) }
     for day in 1...28 where day != 20 && day != 23 {
         add(2, day, .learned)
     }
-
     for day in [1, 2, 4, 5, 6, 9, 10, 11] {
         add(3, day, .learned)
     }
-
     for (month, day) in [(2, 20), (2, 23), (3, 3), (3, 7), (3, 8)] {
         add(month, day, .frozen)
     }
@@ -197,4 +194,3 @@ private struct CalendarDay: View {
     .preferredColorScheme(.dark)
     .tint(Color.brandOrange)
 }
-

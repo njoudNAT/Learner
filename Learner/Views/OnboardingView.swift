@@ -11,7 +11,6 @@ struct OnboardingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 header
-
                 GoalFormFields(
                     title: $viewModel.goalTitle,
                     duration: $viewModel.duration,
@@ -41,6 +40,7 @@ struct OnboardingView: View {
                 .padding(.bottom, 24)
                 .accessibilityHidden(true)
 
+            // "Hello" regular, "Learner" bold.
             Text("Hello \(Text("Learner").fontWeight(.bold))")
                 .font(.largeTitle)
 
@@ -75,7 +75,6 @@ struct OnboardingView: View {
 
     private func startLearning() {
         guard viewModel.canStart else { return }
-
         isGoalFieldFocused = false
         viewModel.startLearning(in: modelContext)
     }
@@ -87,4 +86,5 @@ struct OnboardingView: View {
         .preferredColorScheme(.dark)
         .tint(Color.brandOrange)
 }
+
 

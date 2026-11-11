@@ -8,62 +8,98 @@ struct ActivityView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var viewModel: ActivityViewModel
-
-    init(goal: Goal) {
-        self.goal = goal
-        _viewModel = State(initialValue: ActivityViewModel(goal: goal))
-    }
+    @State private var viewModel = ActivityViewModel()
+    @State private var showCalendar = false
+    @State private var showGoalEditor = false
 
     private var now: Date { viewModel.now }
-    private var todayState: TodayState { viewModel.todayState }
+    private var todayState: TodayState {
+        viewModel.todayState(for: goal)
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 28) {
-                    WeekStrip(goal: goal, now: now)
-                        .modifier(DebugTimeTravel(offset: $viewModel.debugOffset))
+                GlassEffectContainer(spacing: 20) {
+                    VStack(spacing: 28) {
 
-                    statCards
-                    stateContent
+                        // MARK: - Custom Header
+
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Activity")
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundStyle(.primary)
+
+                                Text(now.formatted(
+                                    .dateTime.weekday(.wide).day().month(.wide)
+                                ))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                showCalendar = true
+                            } label: {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 24, weight: .medium))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 50, height: 50)
+                                    .padding(.top, 2)
+                                    .glassEffect(.regular.interactive(), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Calendar")
+
+                            Button {
+                                showGoalEditor = true
+                            } label: {
+                                Image(systemName: "pencil.and.outline")
+                                    .font(.system(size: 24, weight: .medium))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 50, height: 50)
+                                    .padding(.top, 2)
+                                    .glassEffect(.regular.interactive(), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Edit learning goal")
+                        }
+
+                        WeekStrip(goal: goal, now: now)
+                            .modifier(DebugTimeTravel(offset: $viewModel.debugOffset))
+
+                        statCards
+                        stateContent
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .animation(.smooth, value: todayState)
+                    .animation(.smooth, value: goal.status)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .animation(.smooth, value: todayState)
-                .animation(.smooth, value: goal.status)
             }
             .scrollEdgeEffectStyle(.soft, for: .bottom)
             .background(Color(.systemBackground))
-            .navigationTitle("Activity")
-            .navigationSubtitle(now.formatted(.dateTime.weekday(.wide).day().month(.wide)))
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    NavigationLink {
-                        CalendarView(now: now)
-                    } label: {
-                        Image(systemName: "calendar")
-                    }
-                    .accessibilityLabel("Calendar")
-
-                    NavigationLink {
-                        GoalEditorView(goal: goal, now: now)
-                    } label: {
-                        Image(systemName: "square.and.pencil")
-                    }
-                    .accessibilityLabel("Edit learning goal")
-                }
+            .navigationDestination(isPresented: $showCalendar) {
+                CalendarView(now: now)
+            }
+            .navigationDestination(isPresented: $showGoalEditor) {
+                GoalEditorView(goal: goal, now: now)
             }
             .safeAreaInset(edge: .bottom) {
                 freezeFooter
             }
         }
-        .task(id: ClockKey(goalID: goal.persistentModelID, offset: viewModel.debugOffset)) {
-            await viewModel.runClock()
+        .task(id: ClockKey(
+            goalID: goal.persistentModelID,
+            offset: viewModel.debugOffset
+        )) {
+            await viewModel.runClock(goal: goal)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                viewModel.refreshClock()
+                viewModel.refresh(goal: goal)
             }
         }
         .sensoryFeedback(.success, trigger: goal.learnedCount)
@@ -122,7 +158,7 @@ struct ActivityView: View {
         let isLogged = todayState == .learned
 
         return Button {
-            viewModel.logLearned(in: modelContext)
+            viewModel.logLearned(goal: goal, in: modelContext)
         } label: {
             Text(isLogged ? "Logged as Learned" : "Log as Learned")
                 .font(.title3.weight(.semibold))
@@ -136,7 +172,7 @@ struct ActivityView: View {
                 : .regular.tint(Color.brandOrange).interactive(),
             in: .circle
         )
-        .disabled(!goal.canLog(now: now))
+        .disabled(!viewModel.canLog(goal: goal))
         .padding(.top, 24)
     }
 
@@ -145,7 +181,7 @@ struct ActivityView: View {
         if goal.status == .active {
             VStack(spacing: 8) {
                 Button {
-                    viewModel.freezeToday(in: modelContext)
+                    viewModel.freezeToday(goal: goal, in: modelContext)
                 } label: {
                     Text(todayState == .frozen ? "Freezed for a day" : "Freeze for a day")
                         .font(.headline)
@@ -155,7 +191,7 @@ struct ActivityView: View {
                 .buttonStyle(.glassProminent)
                 .tint(Color.brandFreezeBlue)
                 .controlSize(.large)
-                .disabled(!goal.canFreeze(now: now))
+                .disabled(!viewModel.canFreeze(goal: goal))
 
                 Text("\(goal.frozenCount) out of \(goal.duration.maxFreezes) Freezes used")
                     .font(.footnote)
@@ -167,14 +203,7 @@ struct ActivityView: View {
     }
 }
 
-// MARK: - Clock key
-
-private struct ClockKey: Hashable {
-    let goalID: PersistentIdentifier
-    let offset: TimeInterval
-}
-
-// MARK: - Week strip
+// MARK: - Week strip (S M T W T F S, the current week)
 
 private struct WeekStrip: View {
     let goal: Goal
@@ -278,7 +307,7 @@ private struct EndState: View {
     }
 }
 
-// MARK: - Debug time travel
+// MARK: - Debug time travel (long-press the week strip; does nothing in release)
 
 private struct DebugTimeTravel: ViewModifier {
     @Binding var offset: TimeInterval
@@ -290,7 +319,10 @@ private struct DebugTimeTravel: ViewModifier {
             .onLongPressGesture(minimumDuration: 1) {
                 isShowing = true
             }
-            .confirmationDialog("Time travel (debug only)", isPresented: $isShowing) {
+            .confirmationDialog(
+                "Time travel (debug only)",
+                isPresented: $isShowing
+            ) {
                 Button("+1 hour") { offset += 3_600 }
                 Button("+1 day") { offset += 86_400 }
                 Button("+33 hours") { offset += 118_800 }
@@ -313,16 +345,11 @@ private struct DebugTimeTravel: ViewModifier {
     let calendar = Calendar.current
     let start = calendar.date(byAdding: .day, value: -3, to: .now)!
     let goal = Goal(title: "Swift", duration: .week, startDate: start)
-
     container.mainContext.insert(goal)
 
     for offset in 1...3 {
         let date = calendar.date(byAdding: .day, value: -offset, to: .now)!
-        let entry = DayEntry(
-            type: offset == 2 ? .frozen : .learned,
-            at: date
-        )
-
+        let entry = DayEntry(type: offset == 2 ? .frozen : .learned, at: date)
         container.mainContext.insert(entry)
         entry.goal = goal
     }
@@ -332,4 +359,3 @@ private struct DebugTimeTravel: ViewModifier {
         .preferredColorScheme(.dark)
         .tint(Color.brandOrange)
 }
-

@@ -1,21 +1,14 @@
-//
-//  ActivityView.swift
-//  Learner
-//
-//  Created by Njoud Altalal on 30/05/1448 AH.
-//
 import SwiftUI
 import SwiftData
 
-/// Main page. Requires iOS 26 (Liquid Glass).
 struct ActivityView: View {
     let goal: Goal
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var clock = Date()
-    @State private var debugOffset: TimeInterval = 0   // only changed by the debug menu
+    @State private var clock = Date.now
+    @State private var debugOffset: TimeInterval = 0   // changed only by the debug menu
 
     private var now: Date { clock.addingTimeInterval(debugOffset) }
     private var todayState: TodayState { goal.todayState(now: now) }
@@ -36,6 +29,7 @@ struct ActivityView: View {
                 .animation(.smooth, value: goal.status)
             }
             .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .background(Color(.systemBackground))
             .navigationTitle("Activity")
             .navigationSubtitle(now.formatted(.dateTime.weekday(.wide).day().month(.wide)))
             .toolbar {
@@ -57,7 +51,10 @@ struct ActivityView: View {
             }
             .safeAreaInset(edge: .bottom) { freezeFooter }
         }
-        .task(id: debugOffset) { await runClock() }
+        // Restarts when the goal changes (or the debug time changes).
+        .task(id: ClockKey(goalID: goal.persistentModelID, offset: debugOffset)) {
+            await runClock()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 clock = .now
@@ -148,8 +145,7 @@ struct ActivityView: View {
 
     // MARK: - Clock
 
-    /// Re-checks the goal at midnight and at the 32-hour deadline,
-    /// so the screen updates itself while the app stays open.
+    /// Re-checks the goal at midnight and at the 32-hour deadline.
     private func runClock() async {
         while !Task.isCancelled {
             clock = .now
@@ -161,7 +157,12 @@ struct ActivityView: View {
     }
 }
 
-// MARK: - Week strip
+private struct ClockKey: Hashable {
+    let goalID: PersistentIdentifier
+    let offset: TimeInterval
+}
+
+// MARK: - Week strip (S M T W T F S, the current week)
 
 private struct WeekStrip: View {
     let goal: Goal
@@ -257,7 +258,7 @@ private struct EndState: View {
     }
 }
 
-// MARK: - Debug time travel (does nothing in release builds)
+// MARK: - Debug time travel (long-press the week strip; does nothing in release)
 
 private struct DebugTimeTravel: ViewModifier {
     @Binding var offset: TimeInterval
@@ -279,13 +280,25 @@ private struct DebugTimeTravel: ViewModifier {
     }
 }
 
-#Preview {
+// MARK: - Preview
+
+#Preview("Activity") {
     let container = try! ModelContainer(
         for: Goal.self, DayEntry.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
-    let goal = Goal(title: "Swift", duration: .week)
+    let calendar = Calendar.current
+    let start = calendar.date(byAdding: .day, value: -3, to: .now)!
+    let goal = Goal(title: "Swift", duration: .week, startDate: start)
     container.mainContext.insert(goal)
+
+    for offset in 1...3 {
+        let date = calendar.date(byAdding: .day, value: -offset, to: .now)!
+        let entry = DayEntry(type: offset == 2 ? .frozen : .learned, at: date)
+        container.mainContext.insert(entry)
+        entry.goal = goal
+    }
+
     return ActivityView(goal: goal)
         .modelContainer(container)
         .preferredColorScheme(.dark)

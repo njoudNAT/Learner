@@ -1,9 +1,3 @@
-//
-//  Components.swift
-//  Learner
-//
-//  Created by Njoud Altalal on 30/05/1448 AH.
-//
 import SwiftUI
 
 // MARK: - Goal form (shared by Onboarding and the Learning Goal page)
@@ -53,6 +47,8 @@ struct GoalFormFields: View {
     }
 }
 
+// MARK: - Duration chip
+
 struct DurationChip: View {
     let title: String
     let isSelected: Bool
@@ -77,7 +73,27 @@ struct DurationChip: View {
     }
 }
 
-// MARK: - Day circle (week strip and calendar)
+// MARK: - Day styling (shared by the week strip, the calendar, and the year view)
+
+enum DayStyle {
+    static func foreground(_ type: EntryType?, isToday: Bool) -> Color {
+        switch type {
+        case .learned: Color.brandOrange
+        case .frozen:  Color.brandFreezeBlue
+        case nil:      isToday ? Color.white : Color.primary
+        }
+    }
+
+    static func background(_ type: EntryType?, isToday: Bool) -> Color {
+        switch type {
+        case .learned: Color.brandOrange.opacity(0.22)
+        case .frozen:  Color.brandFreezeBlue.opacity(0.22)
+        case nil:      isToday ? Color.brandOrange : Color.clear
+        }
+    }
+}
+
+// MARK: - Day circle
 
 struct DayBubble: View {
     let day: Date
@@ -87,9 +103,9 @@ struct DayBubble: View {
     var body: some View {
         Text(day, format: .dateTime.day())
             .font(.callout.weight(.medium))
-            .foregroundStyle(foreground)
+            .foregroundStyle(DayStyle.foreground(type, isToday: isToday))
             .frame(width: 34, height: 34)
-            .background(background, in: Circle())
+            .background(DayStyle.background(type, isToday: isToday), in: Circle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(day.formatted(.dateTime.day().month(.wide)))\(stateWord)")
     }
@@ -101,20 +117,27 @@ struct DayBubble: View {
         case nil:      isToday ? ", today" : ""
         }
     }
+}
 
-    private var foreground: Color {
-        switch type {
-        case .learned: Color.brandOrange
-        case .frozen:  Color.brandFreezeBlue
-        case nil:      isToday ? Color.white : Color.primary
-        }
-    }
+// MARK: - Preview
 
-    private var background: Color {
-        switch type {
-        case .learned: Color.brandOrange.opacity(0.22)
-        case .frozen:  Color.brandFreezeBlue.opacity(0.22)
-        case nil:      isToday ? Color.brandOrange : Color.clear
+private struct ComponentsPreview: View {
+    @State private var title = "Swift"
+    @State private var duration: GoalDuration = .week
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 32) {
+            GoalFormFields(title: $title, duration: $duration, isFocused: $focused)
+
+            HStack(spacing: 12) {
+                DayBubble(day: .now, isToday: true, type: nil)
+                DayBubble(day: .now, isToday: false, type: .learned)
+                DayBubble(day: .now, isToday: false, type: .frozen)
+                DayBubble(day: .now, isToday: false, type: nil)
+            }
         }
+        .padding(24)
     }
 }
+

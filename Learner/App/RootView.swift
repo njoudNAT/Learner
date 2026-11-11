@@ -1,14 +1,8 @@
-//
-//  RootView.swift
-//  Learner
-//
-//  Created by Njoud Altalal on 29/05/1448 AH.
-//
 import SwiftUI
 import SwiftData
 
-/// Decides which screen to show. No goal yet -> onboarding. Otherwise -> Activity.
-/// Onboarding is never pushed, so there is no way to navigate "back" to it.
+/// No goal yet -> onboarding. Otherwise -> Activity.
+/// Onboarding is never pushed, so there is no way to go "back" to it.
 struct RootView: View {
     @Query(sort: \Goal.startDate, order: .reverse) private var goals: [Goal]
 
@@ -24,4 +18,11 @@ struct RootView: View {
         }
         .animation(.smooth, value: goals.isEmpty)
     }
+}
+
+#Preview("Root") {
+    RootView()
+        .modelContainer(for: [Goal.self, DayEntry.self], inMemory: true)
+        .preferredColorScheme(.dark)
+        .tint(Color.brandOrange)
 }

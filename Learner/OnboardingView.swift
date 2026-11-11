@@ -1,13 +1,6 @@
-//
-//  OnboardingView.swift
-//  Learner
-//
-//  Created by Njoud Altalal on 29/05/1448 AH.
-//
 import SwiftUI
 import SwiftData
 
-/// Requires iOS 26 (Liquid Glass).
 struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
 
@@ -25,8 +18,11 @@ struct OnboardingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 header
-                goalField
-                durationPicker
+                GoalFormFields(
+                    title: $goalTitle,
+                    duration: $duration,
+                    isFocused: $isGoalFieldFocused
+                )
             }
             .padding(.horizontal, 24)
             .padding(.top, 56)
@@ -58,43 +54,6 @@ struct OnboardingView: View {
             Text("This app will help you learn everyday!")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    private var goalField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("I want to learn")
-                .font(.subheadline)
-
-            TextField("Swift", text: $goalTitle)
-                .focused($isGoalFieldFocused)
-                .submitLabel(.done)
-                .textInputAutocapitalization(.words)
-                .autocorrectionDisabled()
-                .onSubmit { isGoalFieldFocused = false }
-                .onChange(of: goalTitle) { _, newValue in
-                    if newValue.count > 40 { goalTitle = String(newValue.prefix(40)) }
-                }
-
-            Divider()
-        }
-    }
-
-    private var durationPicker: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("I want to learn it in a")
-                .font(.subheadline)
-
-            // The container lets neighbouring glass shapes blend and animate together.
-            GlassEffectContainer(spacing: 10) {
-                HStack(spacing: 10) {
-                    ForEach(GoalDuration.allCases) { option in
-                        DurationChip(title: option.title, isSelected: duration == option) {
-                            withAnimation(.snappy) { duration = option }
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -130,31 +89,7 @@ struct OnboardingView: View {
     }
 }
 
-private struct DurationChip: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(isSelected ? Color.white : Color.secondary)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-        }
-        .buttonStyle(.plain)
-        .glassEffect(
-            isSelected
-                ? .regular.tint(Color.brandOrange).interactive()
-                : .regular.interactive(),
-            in: .capsule
-        )
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-#Preview {
+#Preview("Onboarding") {
     OnboardingView()
         .modelContainer(for: [Goal.self, DayEntry.self], inMemory: true)
         .preferredColorScheme(.dark)

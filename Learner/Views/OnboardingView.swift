@@ -1,9 +1,10 @@
-
 import SwiftUI
 import SwiftData
 
 struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppClock.self) private var clock
+
     @State private var viewModel = OnboardingViewModel()
     @FocusState private var isGoalFieldFocused: Bool
 
@@ -11,6 +12,7 @@ struct OnboardingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 header
+
                 GoalFormFields(
                     title: $viewModel.goalTitle,
                     duration: $viewModel.duration,
@@ -74,17 +76,16 @@ struct OnboardingView: View {
     // MARK: - Actions
 
     private func startLearning() {
-        guard viewModel.canStart else { return }
         isGoalFieldFocused = false
-        viewModel.startLearning(in: modelContext)
+        viewModel.startLearning(now: clock.now, in: modelContext)
     }
 }
 
-#Preview("Onboarding") {
-    OnboardingView()
+
+#Preview("Onboarding Flow") {
+    RootView()
         .modelContainer(for: [Goal.self, DayEntry.self], inMemory: true)
+        .environment(AppClock())
         .preferredColorScheme(.dark)
         .tint(Color.brandOrange)
 }
-
-

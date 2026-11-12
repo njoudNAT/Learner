@@ -4,7 +4,6 @@
 //
 //  Created by Njoud Altalal on 01/06/1448 AH.
 //
-
 import Foundation
 import Observation
 import SwiftData
@@ -13,16 +12,14 @@ import SwiftData
 @Observable
 final class GoalEditorViewModel {
     let goal: Goal
-    let now: Date
 
     var title: String
     var duration: GoalDuration
     var showUpdateAlert = false
     var didSave = false
 
-    init(goal: Goal, now: Date) {
+    init(goal: Goal) {
         self.goal = goal
-        self.now = now
         self.title = goal.title
         self.duration = goal.duration
     }
@@ -41,17 +38,19 @@ final class GoalEditorViewModel {
         !trimmedTitle.isEmpty && (goal.status != .active || hasChanges)
     }
 
-    func saveGoal(in modelContext: ModelContext) {
+    /// Saving a running goal ends its streak, so the user must confirm first.
+    var needsConfirmation: Bool {
+        goal.status == .active
+    }
+
+    func saveGoal(now: Date, in modelContext: ModelContext) {
         // The old goal ends, but its entries stay so the calendar keeps the history.
         if goal.status == .active {
             goal.status = .failed
         }
 
-        // RootView shows the newest goal, so Activity switches to this one.
-        modelContext.insert(
-            Goal(title: trimmedTitle, duration: duration, startDate: now)
-        )
-
+        // RootView shows the running goal, so Activity switches to this one.
+        modelContext.insert(Goal(title: trimmedTitle, duration: duration, startDate: now))
         didSave.toggle()
     }
 }

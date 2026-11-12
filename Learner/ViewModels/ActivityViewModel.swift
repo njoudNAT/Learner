@@ -4,61 +4,73 @@
 //
 //  Created by Njoud Altalal on 01/06/1448 AH.
 //
-
 import Foundation
 import Observation
 import SwiftData
 
+/// Where Activity can navigate to.
+enum ActivityRoute: Hashable {
+    case calendar
+    case goalEditor
+}
+
 @MainActor
 @Observable
 final class ActivityViewModel {
-    var clock = Date.now
-    var debugOffset: TimeInterval = 0
+    let goal: Goal
+    var path: [ActivityRoute] = []
 
-    var now: Date {
-        clock.addingTimeInterval(debugOffset)
+    init(goal: Goal) {
+        self.goal = goal
     }
 
-    func todayState(for goal: Goal) -> TodayState {
-        goal.todayState(now: now)
+    // MARK: - Display values (all derived from the goal's entries)
+
+    var status: GoalStatus { goal.status }
+    var learnedCount: Int { goal.learnedCount }
+    var frozenCount: Int { goal.frozenCount }
+
+    var freezeSummary: String {
+        "\(goal.frozenCount) out of \(goal.duration.maxFreezes) Freezes used"
     }
 
-    func canLog(goal: Goal) -> Bool {
-        goal.canLog(now: now)
-    }
+    func todayState(now: Date) -> TodayState { goal.todayState(now: now) }
+    func canLog(now: Date) -> Bool { goal.canLog(now: now) }
+    func canFreeze(now: Date) -> Bool { goal.canFreeze(now: now) }
 
-    func canFreeze(goal: Goal) -> Bool {
-        goal.canFreeze(now: now)
-    }
+    // MARK: - Actions
 
-    func logLearned(goal: Goal, in modelContext: ModelContext) {
+    func logLearned(now: Date, in modelContext: ModelContext) {
         goal.logLearned(now: now, in: modelContext)
     }
 
-    func freezeToday(goal: Goal, in modelContext: ModelContext) {
+    func freezeToday(now: Date, in modelContext: ModelContext) {
         goal.freezeToday(now: now, in: modelContext)
     }
 
-    func refresh(goal: Goal) {
-        clock = .now
-        goal.refresh(now: now)
+    func refresh(clock: AppClock) {
+        clock.sync()
+        goal.refresh(now: clock.now)
     }
 
-    /// Re-checks the goal at midnight and at the 32-hour deadline.
-    func runClock(goal: Goal) async {
-        while !Task.isCancelled {
-            clock = .now
-            goal.refresh(now: now)
+    // MARK: - Navigation
 
-            let wake = goal.nextRefreshDate(now: now)
-            let seconds = max(1, wake.timeIntervalSince(now))
+    func showCalendar() { path.append(.calendar) }
+    func showGoalEditor() { path.append(.goalEditor) }
+
+    // MARK: - Clock
+
+    /// Re-checks the goal at midnight and at the 32-hour deadline,
+    /// so the screen updates itself while the app stays open.
+    func keepFresh(clock: AppClock) async {
+        while !Task.isCancelled {
+            clock.sync()
+            goal.refresh(now: clock.now)
+
+            let wake = goal.nextRefreshDate(now: clock.now)
+            let seconds = max(1, wake.timeIntervalSince(clock.now))
 
             try? await Task.sleep(for: .seconds(seconds))
         }
     }
-}
-
-struct ClockKey: Hashable {
-    let goalID: PersistentIdentifier
-    let offset: TimeInterval
 }

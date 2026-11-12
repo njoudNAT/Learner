@@ -73,7 +73,7 @@ struct DurationChip: View {
     }
 }
 
-// MARK: - Day styling (shared by the week strip, the calendar, and the year view)
+// MARK: - Day styling (shared by the week strip and the calendar)
 
 enum DayStyle {
     static func foreground(_ type: EntryType?, isToday: Bool) -> Color {
@@ -141,3 +141,8 @@ private struct ComponentsPreview: View {
     }
 }
 
+#Preview("Components") {
+    ComponentsPreview()
+        .preferredColorScheme(.dark)
+        .tint(Color.brandOrange)
+}

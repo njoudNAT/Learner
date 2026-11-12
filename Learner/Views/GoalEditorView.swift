@@ -1,22 +1,18 @@
-
 import SwiftUI
 import SwiftData
 
 /// "Learning Goal" page: pushed, native back chevron, ✓ on the right.
 /// Also used for "Set a goal" after a goal is completed or not met.
-
 struct GoalEditorView: View {
-
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppClock.self) private var clock
 
     @State private var viewModel: GoalEditorViewModel
     @FocusState private var isFocused: Bool
 
-    init(goal: Goal, now: Date) {
-        _viewModel = State(
-            initialValue: GoalEditorViewModel(goal: goal, now: now)
-        )
+    init(goal: Goal) {
+        _viewModel = State(initialValue: GoalEditorViewModel(goal: goal))
     }
 
     var body: some View {
@@ -37,25 +33,27 @@ struct GoalEditorView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: confirmTapped) {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.white)   // white ✓
                 }
                 .buttonStyle(.glassProminent)
                 .tint(Color.brandOrange)
-                .disabled(!viewModel.canConfirm)
+                .disabled(!viewModel.canConfirm || viewModel.showUpdateAlert)
                 .accessibilityLabel("Save goal")
             }
         }
-        .alert("Update goal", isPresented: $viewModel.showUpdateAlert) {
-            Button("Dismiss", role: .cancel) { }
-                .tint(.gray)
-
-            Button("Update") {
-                saveGoal()
+        .overlay {
+            if viewModel.showUpdateAlert {
+                UpdateGoalAlert(
+                    onDismiss: { viewModel.showUpdateAlert = false },
+                    onUpdate: {
+                        viewModel.showUpdateAlert = false
+                        saveGoal()
+                    }
+                )
+                .transition(.opacity)
             }
-            .tint(Color.brandOrange)
-        } message: {
-            Text("If you update now, your streak will start over.")
         }
+        .animation(.smooth(duration: 0.25), value: viewModel.showUpdateAlert)
         .sensoryFeedback(.selection, trigger: viewModel.duration)
         .sensoryFeedback(.success, trigger: viewModel.didSave)
     }
@@ -63,9 +61,9 @@ struct GoalEditorView: View {
     // MARK: - Actions
 
     private func confirmTapped() {
-        isFocused = false
+        isFocused = false   // the keyboard closes before the alert appears
 
-        if viewModel.goal.status == .active {
+        if viewModel.needsConfirmation {
             viewModel.showUpdateAlert = true
         } else {
             saveGoal()
@@ -73,10 +71,80 @@ struct GoalEditorView: View {
     }
 
     private func saveGoal() {
-        viewModel.saveGoal(in: modelContext)
+        viewModel.saveGoal(now: clock.now, in: modelContext)
+        // RootView swaps to the new goal; dismiss is a safety net.
         dismiss()
     }
 }
+
+// MARK: - Alert from the Sketch (dark card, gray "Dismiss", orange "Update")
+
+private struct UpdateGoalAlert: View {
+    let onDismiss: () -> Void
+    let onUpdate: () -> Void
+
+    var body: some View {
+        ZStack {
+            // Dim layer. It also blocks touches on the page behind the alert.
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+
+            card
+                .padding(.horizontal, 40)
+        }
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Update goal")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Text("If you update now, your streak will start over.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                AlertButton(title: "Dismiss", fill: Color(.systemGray4), action: onDismiss)
+                AlertButton(title: "Update", fill: Color.brandOrange, action: onUpdate)
+            }
+            .padding(.top, 16)
+        }
+        .padding(24)
+        .frame(maxWidth: 340, alignment: .leading)
+        .background(
+            Color(.secondarySystemBackground),
+            in: RoundedRectangle(cornerRadius: 34, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+    }
+}
+
+private struct AlertButton: View {
+    let title: String
+    let fill: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(fill, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Preview
 
 #Preview("Goal Editor") {
     let container = try! ModelContainer(
@@ -88,9 +156,10 @@ struct GoalEditorView: View {
     container.mainContext.insert(goal)
 
     return NavigationStack {
-        GoalEditorView(goal: goal, now: .now)
+        GoalEditorView(goal: goal)
     }
     .modelContainer(container)
+    .environment(AppClock())
     .preferredColorScheme(.dark)
     .tint(Color.brandOrange)
 }

@@ -34,9 +34,10 @@ extension Goal {
 
     // MARK: - Button rules
 
-    /// Logging stays possible after a freeze (the freeze becomes a learned day).
+    /// A day gets exactly one entry: learned or frozen.
+    /// After either, BOTH buttons stay disabled until midnight.
     func canLog(now: Date = .now) -> Bool {
-        status == .active && todayState(now: now) != .learned
+        status == .active && todayState(now: now) == .notLogged
     }
 
     func canFreeze(now: Date = .now) -> Bool {
@@ -47,17 +48,10 @@ extension Goal {
 
     func logLearned(now: Date = .now, in context: ModelContext) {
         guard canLog(now: now) else { return }
-
-        if let existing = entry(on: now) {
-            // Today was frozen: convert it. The freeze is refunded automatically,
-            // because freezesRemaining is derived from the entries.
-            existing.type = .learned
-            existing.loggedAt = now
-        } else {
-            addEntry(.learned, now: now, in: context)
-        }
+        addEntry(.learned, now: now, in: context)
         refresh(now: now)
     }
+
 
     func freezeToday(now: Date = .now, in context: ModelContext) {
         guard canFreeze(now: now) else { return }

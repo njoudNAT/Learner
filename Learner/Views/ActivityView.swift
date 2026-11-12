@@ -1,112 +1,91 @@
-
 import SwiftUI
 import SwiftData
 
 struct ActivityView: View {
-    let goal: Goal
-
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(AppClock.self) private var clock
 
-    @State private var viewModel = ActivityViewModel()
-    @State private var showCalendar = false
-    @State private var showGoalEditor = false
+    @State private var viewModel: ActivityViewModel
 
-    private var now: Date { viewModel.now }
-    private var todayState: TodayState {
-        viewModel.todayState(for: goal)
+    init(goal: Goal) {
+        _viewModel = State(initialValue: ActivityViewModel(goal: goal))
     }
 
+    private var goal: Goal { viewModel.goal }
+    private var now: Date { clock.now }
+    private var todayState: TodayState { viewModel.todayState(now: now) }
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $viewModel.path) {
             ScrollView {
-                GlassEffectContainer(spacing: 20) {
-                    VStack(spacing: 28) {
+                VStack(spacing: 28) {
+                    header
 
-                        // MARK: - Custom Header
+                    WeekStrip(goal: goal, now: now)
+                        .modifier(DebugTimeTravel())
 
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Activity")
-                                    .font(.system(size: 32, weight: .bold))
-                                    .foregroundStyle(.primary)
-
-                                Text(now.formatted(
-                                    .dateTime.weekday(.wide).day().month(.wide)
-                                ))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Button {
-                                showCalendar = true
-                            } label: {
-                                Image(systemName: "calendar")
-                                    .font(.system(size: 24, weight: .medium))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 50, height: 50)
-                                    .padding(.top, 2)
-                                    .glassEffect(.regular.interactive(), in: Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Calendar")
-
-                            Button {
-                                showGoalEditor = true
-                            } label: {
-                                Image(systemName: "pencil.and.outline")
-                                    .font(.system(size: 24, weight: .medium))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 50, height: 50)
-                                    .padding(.top, 2)
-                                    .glassEffect(.regular.interactive(), in: Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Edit learning goal")
-                        }
-
-                        WeekStrip(goal: goal, now: now)
-                            .modifier(DebugTimeTravel(offset: $viewModel.debugOffset))
-
-                        statCards
-                        stateContent
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .animation(.smooth, value: todayState)
-                    .animation(.smooth, value: goal.status)
+                    statCards
+                    stateContent
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .animation(.smooth, value: todayState)
+                .animation(.smooth, value: viewModel.status)
             }
             .scrollEdgeEffectStyle(.soft, for: .bottom)
             .background(Color(.systemBackground))
-            .navigationDestination(isPresented: $showCalendar) {
-                CalendarView(now: now)
-            }
-            .navigationDestination(isPresented: $showGoalEditor) {
-                GoalEditorView(goal: goal, now: now)
-            }
-            .safeAreaInset(edge: .bottom) {
-                freezeFooter
+            .toolbar(.hidden, for: .navigationBar)   // custom header below, as in the Sketch
+            .safeAreaInset(edge: .bottom) { freezeFooter }
+            .navigationDestination(for: ActivityRoute.self) { route in
+                switch route {
+                case .calendar:
+                    CalendarView()
+                case .goalEditor:
+                    GoalEditorView(goal: goal)
+                }
             }
         }
-        .task(id: ClockKey(
-            goalID: goal.persistentModelID,
-            offset: viewModel.debugOffset
-        )) {
-            await viewModel.runClock(goal: goal)
+        .task(id: clock.debugOffset) {
+            await viewModel.keepFresh(clock: clock)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                viewModel.refresh(goal: goal)
+                viewModel.refresh(clock: clock)
             }
         }
-        .sensoryFeedback(.success, trigger: goal.learnedCount)
-        .sensoryFeedback(.impact, trigger: goal.frozenCount)
+        .sensoryFeedback(.success, trigger: viewModel.learnedCount)
+        .sensoryFeedback(.impact, trigger: viewModel.frozenCount)
     }
 
     // MARK: - Sections
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Activity")
+                    .font(.largeTitle.bold())
+
+                Text(now.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 12) {
+                    HeaderButton(symbol: "calendar", label: "Calendar") {
+                        viewModel.showCalendar()
+                    }
+
+                    HeaderButton(symbol: "pencil.and.outline", label: "Edit learning goal") {
+                        viewModel.showGoalEditor()
+                    }
+                }
+            }
+        }
+    }
 
     private var statCards: some View {
         GlassEffectContainer(spacing: 12) {
@@ -114,14 +93,14 @@ struct ActivityView: View {
                 StatCard(
                     symbol: "flame.fill",
                     tint: Color.brandOrange,
-                    count: goal.learnedCount,
+                    count: viewModel.learnedCount,
                     caption: "Learned"
                 )
 
                 StatCard(
                     symbol: "snowflake",
                     tint: Color.brandFreezeBlue,
-                    count: goal.frozenCount,
+                    count: viewModel.frozenCount,
                     caption: "Freezed"
                 )
             }
@@ -130,58 +109,55 @@ struct ActivityView: View {
 
     @ViewBuilder
     private var stateContent: some View {
-        switch goal.status {
+        switch viewModel.status {
         case .active:
             logButton
 
         case .completed:
             EndState(
-                goal: goal,
-                now: now,
                 symbol: "hands.clap.fill",
                 title: "Well done!",
-                message: "Ready for your next goal?"
+                message: "Ready for your next goal?",
+                onSetGoal: viewModel.showGoalEditor
             )
 
         case .failed:
             EndState(
-                goal: goal,
-                now: now,
                 symbol: "xmark.seal.fill",
                 title: "You didn’t reach your goal this time.",
-                message: "Want to set another goal?"
+                message: "Want to set another goal?",
+                onSetGoal: viewModel.showGoalEditor
             )
         }
     }
 
     private var logButton: some View {
-        let isLogged = todayState == .learned
+        let isEnabled = viewModel.canLog(now: now)
 
         return Button {
-            viewModel.logLearned(goal: goal, in: modelContext)
+            viewModel.logLearned(now: now, in: modelContext)
         } label: {
-            Text(isLogged ? "Logged as Learned" : "Log as Learned")
+            Text(todayState == .learned ? "Logged as Learned" : "Log as Learned")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(isLogged ? Color.secondary : Color.white)
+                .foregroundStyle(isEnabled ? Color.white : Color.secondary)
                 .frame(width: 240, height: 240)
         }
         .buttonStyle(.plain)
         .glassEffect(
-            isLogged
-                ? .regular.interactive()
-                : .regular.tint(Color.brandOrange).interactive(),
+            isEnabled
+                ? .regular.tint(Color.brandOrange).interactive()
+                : .regular,
             in: .circle
         )
-        .disabled(!viewModel.canLog(goal: goal))
+        .disabled(!isEnabled)
         .padding(.top, 24)
     }
-
     @ViewBuilder
     private var freezeFooter: some View {
-        if goal.status == .active {
+        if viewModel.status == .active {
             VStack(spacing: 8) {
                 Button {
-                    viewModel.freezeToday(goal: goal, in: modelContext)
+                    viewModel.freezeToday(now: now, in: modelContext)
                 } label: {
                     Text(todayState == .frozen ? "Freezed for a day" : "Freeze for a day")
                         .font(.headline)
@@ -191,15 +167,34 @@ struct ActivityView: View {
                 .buttonStyle(.glassProminent)
                 .tint(Color.brandFreezeBlue)
                 .controlSize(.large)
-                .disabled(!viewModel.canFreeze(goal: goal))
+                .disabled(!viewModel.canFreeze(now: now))
 
-                Text("\(goal.frozenCount) out of \(goal.duration.maxFreezes) Freezes used")
+                Text(viewModel.freezeSummary)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
+    }
+}
+
+// MARK: - Header button (44pt, Apple's minimum tap size)
+
+private struct HeaderButton: View {
+    let symbol: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.title3.weight(.medium))
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: .circle)
+        .accessibilityLabel(label)
     }
 }
 
@@ -241,7 +236,7 @@ private struct WeekStrip: View {
     }
 }
 
-// MARK: - Cards and states
+// MARK: - Stat card and end state
 
 private struct StatCard: View {
     let symbol: String
@@ -271,11 +266,10 @@ private struct StatCard: View {
 }
 
 private struct EndState: View {
-    let goal: Goal
-    let now: Date
     let symbol: String
     let title: String
     let message: String
+    let onSetGoal: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
@@ -292,9 +286,7 @@ private struct EndState: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            NavigationLink {
-                GoalEditorView(goal: goal, now: now)
-            } label: {
+            Button(action: onSetGoal) {
                 Label("Set a goal", systemImage: "pencil.circle")
                     .font(.headline)
             }
@@ -310,7 +302,7 @@ private struct EndState: View {
 // MARK: - Debug time travel (long-press the week strip; does nothing in release)
 
 private struct DebugTimeTravel: ViewModifier {
-    @Binding var offset: TimeInterval
+    @Environment(AppClock.self) private var clock
     @State private var isShowing = false
 
     func body(content: Content) -> some View {
@@ -319,14 +311,11 @@ private struct DebugTimeTravel: ViewModifier {
             .onLongPressGesture(minimumDuration: 1) {
                 isShowing = true
             }
-            .confirmationDialog(
-                "Time travel (debug only)",
-                isPresented: $isShowing
-            ) {
-                Button("+1 hour") { offset += 3_600 }
-                Button("+1 day") { offset += 86_400 }
-                Button("+33 hours") { offset += 118_800 }
-                Button("Reset time", role: .destructive) { offset = 0 }
+            .confirmationDialog("Time travel (debug only)", isPresented: $isShowing) {
+                Button("+1 hour") { clock.debugOffset += 3_600 }
+                Button("+1 day") { clock.debugOffset += 86_400 }
+                Button("+33 hours") { clock.debugOffset += 118_800 }
+                Button("Reset time", role: .destructive) { clock.debugOffset = 0 }
             }
         #else
         content
@@ -356,6 +345,7 @@ private struct DebugTimeTravel: ViewModifier {
 
     return ActivityView(goal: goal)
         .modelContainer(container)
+        .environment(AppClock())
         .preferredColorScheme(.dark)
         .tint(Color.brandOrange)
 }

@@ -5,7 +5,6 @@
 //  Created by Njoud Altalal on 01/06/1448 AH.
 //
 
-
 import Foundation
 import Observation
 import SwiftData
@@ -25,11 +24,11 @@ final class OnboardingViewModel {
         !trimmedTitle.isEmpty
     }
 
-    func startLearning(in modelContext: ModelContext) {
+    func startLearning(now: Date, in modelContext: ModelContext) {
         guard canStart else { return }
 
         didStart.toggle()
         // RootView watches the goals list and swaps to the Activity page.
-        modelContext.insert(Goal(title: trimmedTitle, duration: duration))
+        modelContext.insert(Goal(title: trimmedTitle, duration: duration, startDate: now))
     }
 }

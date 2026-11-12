@@ -1,11 +1,9 @@
-
 import SwiftUI
 import SwiftData
 
 /// "Activities" (Task 5). View only: nothing on this screen can be tapped or edited.
-
 struct CalendarView: View {
-    let now: Date
+    @Environment(AppClock.self) private var clock
 
     // All history across every goal, so old days never disappear.
     @Query(sort: \DayEntry.day) private var entries: [DayEntry]
@@ -13,20 +11,9 @@ struct CalendarView: View {
     @State private var position: Date?
 
     private let viewModel = CalendarViewModel()
-    private let calendar = Calendar.current
-
-    init(now: Date) {
-        self.now = now
-
-        let calendar = Calendar.current
-        let current = calendar.dateInterval(of: .month, for: now)?.start
-            ?? calendar.startOfDay(for: now)
-
-        // Opens on the current month.
-        _position = State<Date?>(initialValue: current)
-    }
 
     var body: some View {
+        let now = clock.now
         let types = viewModel.typeByDay(entries: entries)
         let months = viewModel.monthStarts(now: now, entries: entries)
 
@@ -34,7 +21,7 @@ struct CalendarView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(months.enumerated()), id: \.element) { index, month in
                     VStack(alignment: .leading, spacing: 0) {
-                        if index > 0 { Divider() } // line between months only
+                        if index > 0 { Divider() }   // line between months only
                         MonthSection(month: month, now: now, types: types)
                     }
                     .id(month)
@@ -46,6 +33,12 @@ struct CalendarView: View {
         .background(Color(.systemBackground))
         .navigationTitle("Activities")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // Opens on the current month.
+            if position == nil {
+                position = viewModel.startOfMonth(for: now)
+            }
+        }
     }
 }
 
@@ -56,35 +49,15 @@ private struct MonthSection: View {
     let now: Date
     let types: [Date: EntryType]
 
-    private let calendar = Calendar.current
     private let columns = Array(
         repeating: GridItem(.flexible(), spacing: 0),
         count: 7
     )
 
-    /// Empty cells before the 1st, based on the user's first weekday.
-    private var leadingBlanks: Int {
-        (calendar.component(.weekday, from: month) - calendar.firstWeekday + 7) % 7
-    }
-
-    private var dayCount: Int {
-        calendar.range(of: .day, in: .month, for: month)?.count ?? 30
-    }
-
-    /// SUN MON TUE WED THU FRI SAT, starting at the user's first weekday.
-    private var weekdaySymbols: [String] {
-        let symbols = calendar.shortWeekdaySymbols
-        let shift = calendar.firstWeekday - 1
-        return Array(symbols[shift...] + symbols[..<shift]).map {
-            $0.uppercased()
-        }
-    }
-
-    private func date(_ number: Int) -> Date {
-        calendar.date(byAdding: .day, value: number - 1, to: month) ?? month
-    }
-
     var body: some View {
+        let calendar = Calendar.current
+        let layout = MonthLayout(month: month)
+
         VStack(alignment: .leading, spacing: 12) {
             Text(month, format: .dateTime.month(.wide).year())
                 .font(.headline)
@@ -93,7 +66,7 @@ private struct MonthSection: View {
 
             // Weekday labels are repeated in every month, as in the Sketch.
             HStack(spacing: 0) {
-                ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+                ForEach(Array(layout.weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
@@ -104,12 +77,12 @@ private struct MonthSection: View {
             .accessibilityHidden(true)
 
             LazyVGrid(columns: columns, spacing: 14) {
-                ForEach(0..<leadingBlanks, id: \.self) { _ in
+                ForEach(0..<layout.leadingBlanks, id: \.self) { _ in
                     Color.clear.frame(height: 36)
                 }
 
-                ForEach(1...dayCount, id: \.self) { number in
-                    let day = date(number)
+                ForEach(1...layout.dayCount, id: \.self) { number in
+                    let day = layout.date(forDay: number)
 
                     CalendarDay(
                         date: day,
@@ -146,8 +119,8 @@ private struct CalendarDay: View {
     private var stateWord: String {
         switch type {
         case .learned: ", learned"
-        case .frozen: ", freezed"
-        case nil: isToday ? ", today" : ""
+        case .frozen:  ", freezed"
+        case nil:      isToday ? ", today" : ""
         }
     }
 }
@@ -162,9 +135,7 @@ private struct CalendarDay: View {
 
     let calendar = Calendar.current
     let date = { (month: Int, day: Int) -> Date in
-        calendar.date(
-            from: DateComponents(year: 2026, month: month, day: day, hour: 12)
-        )!
+        calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: 12))!
     }
 
     let goal = Goal(title: "Swift", duration: .year, startDate: date(1, 1))
@@ -177,20 +148,17 @@ private struct CalendarDay: View {
     }
 
     for day in 1...11 { add(1, day, .learned) }
-    for day in 1...28 where day != 20 && day != 23 {
-        add(2, day, .learned)
-    }
-    for day in [1, 2, 4, 5, 6, 9, 10, 11] {
-        add(3, day, .learned)
-    }
-    for (month, day) in [(2, 20), (2, 23), (3, 3), (3, 7), (3, 8)] {
-        add(month, day, .frozen)
-    }
+    for day in 1...28 where day != 20 && day != 23 { add(2, day, .learned) }
+    for day in [1, 2, 4, 5, 6, 9, 10, 11] { add(3, day, .learned) }
+    for (month, day) in [(2, 20), (2, 23), (3, 3), (3, 7), (3, 8)] { add(month, day, .frozen) }
 
-    return NavigationStack {
-        CalendarView(now: date(3, 12))
-    }
-    .modelContainer(container)
-    .preferredColorScheme(.dark)
-    .tint(Color.brandOrange)
+    // The shared clock is set to the Sketch's "today".
+    let clock = AppClock()
+    clock.debugOffset = date(3, 12).timeIntervalSinceNow
+
+    return NavigationStack { CalendarView() }
+        .modelContainer(container)
+        .environment(clock)
+        .preferredColorScheme(.dark)
+        .tint(Color.brandOrange)
 }

@@ -1,9 +1,4 @@
-//
-//  ActivityViewModel.swift
-//  Learner
-//
-//  Created by Njoud Altalal on 01/06/1448 AH.
-//
+
 import Foundation
 import Observation
 import SwiftData
@@ -17,7 +12,9 @@ enum ActivityRoute: Hashable {
 @MainActor
 @Observable
 final class ActivityViewModel {
+
     let goal: Goal
+
     var path: [ActivityRoute] = []
 
     init(goal: Goal) {
@@ -27,16 +24,26 @@ final class ActivityViewModel {
     // MARK: - Display values (all derived from the goal's entries)
 
     var status: GoalStatus { goal.status }
+
     var learnedCount: Int { goal.learnedCount }
+
     var frozenCount: Int { goal.frozenCount }
 
     var freezeSummary: String {
         "\(goal.frozenCount) out of \(goal.duration.maxFreezes) Freezes used"
     }
 
-    func todayState(now: Date) -> TodayState { goal.todayState(now: now) }
-    func canLog(now: Date) -> Bool { goal.canLog(now: now) }
-    func canFreeze(now: Date) -> Bool { goal.canFreeze(now: now) }
+    func todayState(now: Date) -> TodayState {
+        goal.todayState(now: now)
+    }
+
+    func canLog(now: Date) -> Bool {
+        goal.canLog(now: now)
+    }
+
+    func canFreeze(now: Date) -> Bool {
+        goal.canFreeze(now: now)
+    }
 
     // MARK: - Actions
 
@@ -55,15 +62,22 @@ final class ActivityViewModel {
 
     // MARK: - Navigation
 
-    func showCalendar() { path.append(.calendar) }
-    func showGoalEditor() { path.append(.goalEditor) }
+    func showCalendar() {
+        path.append(.calendar)
+    }
+
+    func showGoalEditor() {
+        path.append(.goalEditor)
+    }
 
     // MARK: - Clock
 
     /// Re-checks the goal at midnight and at the 32-hour deadline,
     /// so the screen updates itself while the app stays open.
     func keepFresh(clock: AppClock) async {
+
         while !Task.isCancelled {
+
             clock.sync()
             goal.refresh(now: clock.now)
 
@@ -73,4 +87,5 @@ final class ActivityViewModel {
             try? await Task.sleep(for: .seconds(seconds))
         }
     }
+
 }

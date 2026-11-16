@@ -16,6 +16,11 @@
 			path = Learner;
 			sourceTree = "<group>";
 		};
+		90B5858B30A993C600E58A0D /* LearnerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LearnerTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,6 +37,7 @@
 			children = (
 				9022618B30A1AF380097E86C /* Learner */,
 				9022618A30A1AF380097E86C /* Products */,
+				90B5858B30A993C600E58A0D /* LearnerTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -58,6 +64,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				9022618B30A1AF380097E86C /* Learner */,
+				90B5858B30A993C600E58A0D /* LearnerTests */,
 			);
 			name = Learner;
 			productName = Learner;

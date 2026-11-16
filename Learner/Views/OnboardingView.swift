@@ -4,15 +4,15 @@ import SwiftData
 struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppClock.self) private var clock
-
+    
     @State private var viewModel = OnboardingViewModel()
     @FocusState private var isGoalFieldFocused: Bool
-
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 header
-
+                
                 GoalFormFields(
                     title: $viewModel.goalTitle,
                     duration: $viewModel.duration,
@@ -30,9 +30,9 @@ struct OnboardingView: View {
         .sensoryFeedback(.success, trigger: viewModel.didStart)
         .sensoryFeedback(.selection, trigger: viewModel.duration)
     }
-
+    
     // MARK: - Sections
-
+    
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: "flame.fill")
@@ -41,17 +41,18 @@ struct OnboardingView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 24)
                 .accessibilityHidden(true)
-
+                .modifier(DebugPanelTrigger())
+            
             // "Hello" regular, "Learner" bold.
             Text("Hello \(Text("Learner").fontWeight(.bold))")
                 .font(.largeTitle)
-
+            
             Text("This app will help you learn everyday!")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
     }
-
+    
     private var footer: some View {
         VStack(spacing: 12) {
             Button(action: startLearning) {
@@ -64,7 +65,7 @@ struct OnboardingView: View {
             .tint(Color.brandOrange)
             .controlSize(.large)
             .disabled(!viewModel.canStart)
-
+            
             Text("You can edit your desire later")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -72,15 +73,17 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
     }
-
+    
+    // MARK: - Actions
     // MARK: - Actions
 
     private func startLearning() {
         isGoalFieldFocused = false
         viewModel.startLearning(now: clock.now, in: modelContext)
+        // Ask for notification permission right when the user commits to a goal.
+        Task { await NotificationService.shared.requestPermission() }
     }
-}
-
+}   // <- end of OnboardingView
 
 #Preview("Onboarding Flow") {
     RootView()

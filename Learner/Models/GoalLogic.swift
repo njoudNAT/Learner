@@ -39,9 +39,8 @@ extension Goal {
 
     // MARK: - Button rules
 
-    /// A day gets exactly one entry: learned or frozen.
-    /// After either, BOTH buttons stay disabled until midnight,
-    /// except the same button can be pressed again to undo.
+    /// One entry per day. After a day is logged or freezed, the OTHER button is
+    /// disabled until midnight. Pressing the SAME button again undoes the entry.
 
     func canLog(now: Date = .now) -> Bool {
         status == .active && todayState(now: now) == .notLogged
@@ -51,12 +50,27 @@ extension Goal {
         status == .active && todayState(now: now) == .notLogged && freezesRemaining > 0
     }
 
+    /// Undo works while the goal runs, and on the day it was completed
+    /// (a mis-tap on the last day can be reversed). A failed goal can never be undone,
+    /// and an undo may not push the goal past its 32-hour deadline.
+    func canUndo(_ type: EntryType, now: Date = .now) -> Bool {
+        guard status == .active || status == .completed,
+              let todayEntry = entry(on: now),
+              todayEntry.type == type else { return false }
+
+        let previous = entries
+            .filter { $0 !== todayEntry }
+            .map(\.loggedAt)
+            .max() ?? startDate
+
+        return now.timeIntervalSince(previous) <= Rules.streakWindow
+    }
+
     // MARK: - Actions
 
     func logLearned(now: Date = .now, in context: ModelContext) {
-
         // Pressing the same button again undoes today's entry.
-        if todayState(now: now) == .learned {
+        if canUndo(.learned, now: now) {
             removeTodayEntry(now: now, in: context)
             return
         }
@@ -68,9 +82,8 @@ extension Goal {
     }
 
     func freezeToday(now: Date = .now, in context: ModelContext) {
-
         // Pressing the same button again undoes today's freeze.
-        if todayState(now: now) == .frozen {
+        if canUndo(.frozen, now: now) {
             removeTodayEntry(now: now, in: context)
             return
         }
@@ -81,20 +94,23 @@ extension Goal {
         refresh(now: now)
     }
 
-    /// Removes today's entry and recalculates the goal.
-    private func removeTodayEntry(now: Date, in context: ModelContext) {
+    /// Undo from outside the two buttons (used by the "Well done" screen).
+    func undoToday(now: Date = .now, in context: ModelContext) {
+        guard let type = entry(on: now)?.type, canUndo(type, now: now) else { return }
+        removeTodayEntry(now: now, in: context)
+    }
 
+    private func removeTodayEntry(now: Date, in context: ModelContext) {
         guard let todayEntry = entry(on: now) else { return }
 
         entries.removeAll { $0 === todayEntry }
         todayEntry.goal = nil
         context.delete(todayEntry)
 
-        // Undo can reverse completion caused by today's entry.
-        status = .active
+        // Undoing the last day reopens a goal that was just completed.
+        if status == .completed { status = .active }
         refresh(now: now)
     }
-
     private func addEntry(_ type: EntryType, now: Date, in context: ModelContext) {
 
         let newEntry = DayEntry(type: type, at: now)

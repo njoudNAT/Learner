@@ -13,6 +13,7 @@ import SwiftData
 struct SetGoalView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppClock.self) private var clock
+    @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel: SetGoalViewModel
     @FocusState private var isFocused: Bool
@@ -64,6 +65,9 @@ struct SetGoalView: View {
     private func start() {
         isFocused = false
         viewModel.start(now: clock.now, in: modelContext)
+        // RootView now shows the new running goal. dismiss() is a safety net,
+        // so this page never stays open after Start Learning.
+        dismiss()
         Task { await NotificationService.shared.requestPermission() }
     }
 }

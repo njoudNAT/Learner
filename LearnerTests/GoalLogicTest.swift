@@ -312,5 +312,26 @@ struct GoalLogicTests {
         let february = Calendar.current.date(from: DateComponents(year: 2026, month: 2, day: 1))!
         #expect(MonthLayout(month: february).dayCount == 28)
     }
+    @Test func usingAllFreezesDoesNotFailTheGoal() throws {
+        let env = try Env()
+        let goal = makeGoal(in: env)
+
+        goal.freezeToday(now: time(day: 0), in: env.context)
+        goal.freezeToday(now: time(day: 1), in: env.context)
+
+        // Day 3: only the Freeze button is off. The goal keeps running.
+        #expect(goal.status == .active)
+        #expect(goal.freezesRemaining == 0)
+        #expect(!goal.canFreeze(now: time(day: 2)))
+        #expect(goal.canLog(now: time(day: 2)))
+
+        // Logging the other five days completes the goal.
+        for day in 2..<7 {
+            goal.logLearned(now: time(day: day), in: env.context)
+        }
+        #expect(goal.status == .completed)
+        #expect(goal.learnedCount == 5)
+        #expect(goal.frozenCount == 2)
+    }
 }
 #endif

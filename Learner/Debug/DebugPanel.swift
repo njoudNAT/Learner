@@ -57,8 +57,12 @@ struct DebugPanelView: View {
                         Button("Freeze, then go to next day") {
                             WeekPlayer.freezeThenNextDay(goal, clock: clock, in: modelContext)
                         }
-                        Button("Skip a day (2 skips in a row fail the goal)") {
-                            WeekPlayer.skipDay(goal, clock: clock)
+                        .disabled(!goal.canFreeze(now: clock.now))   // same rule as the real button
+
+                        if goal.status == .active && goal.freezesRemaining == 0 {
+                            Text("No freezes left: only the Freeze button is off for the rest of this goal. Keep logging.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         Button("Auto-play: I did the challenge") {
                             WeekPlayer.finishGoal(goal, clock: clock, in: modelContext)
@@ -311,9 +315,18 @@ enum WeekPlayer {
     }
 
     /// Taps "Freeze for a day" for today (if allowed), then moves the clock to tomorrow.
+    /// If no freeze is possible and today is still empty, NOTHING happens and the clock
+    /// does not move, exactly like the disabled Freeze button in the app.
     static func freezeThenNextDay(_ goal: Goal, clock: AppClock, in context: ModelContext) {
         clock.sync()
-        if goal.canFreeze(now: clock.now) { goal.freezeToday(now: clock.now, in: context) }
+        let now = clock.now
+
+        if goal.canFreeze(now: now) {
+            goal.freezeToday(now: now, in: context)
+        } else if goal.todayState(now: now) == .notLogged {
+            return   // none left (or goal ended): don't skip a day by accident
+        }
+
         advance(goal, clock: clock, by: day)
     }
 

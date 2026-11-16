@@ -37,7 +37,14 @@ final class SetGoalViewModel {
 
         didStart.toggle()
         // The old goal already ended, so there is nothing to confirm.
-        // RootView sees the new running goal and shows a fresh Activity page.
         modelContext.insert(Goal(title: trimmedTitle, duration: duration, startDate: now))
+
+        // Save right away so the new goal is permanent before RootView looks for the running goal.
+        try? modelContext.save()
+
+        #if DEBUG
+        print("SetGoal started “\(trimmedTitle)” (\(duration.title)). Goals in database:",
+              (try? modelContext.fetchCount(FetchDescriptor<Goal>())) ?? -1)
+        #endif
     }
 }

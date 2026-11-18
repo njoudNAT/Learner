@@ -1,9 +1,9 @@
 import SwiftUI
 
-// MARK: - Goal form (shared by Onboarding and the Learning Goal page)
+// MARK: - Goal form (shared by Onboarding, Learning Goal and Set a goal)
 
 /// "I want to learn ___" + "I want to learn it in a Week / Month / Year".
-/// One component, so both pages always look and behave identically.
+/// One component, so every page looks and behaves identically.
 struct GoalFormFields: View {
     @Binding var title: String
     @Binding var duration: GoalDuration
@@ -73,6 +73,44 @@ struct DurationChip: View {
     }
 }
 
+// MARK: - Bottom action button (hidden while the keyboard is open)
+
+/// The main button at the bottom of a form page.
+/// Like Apple's own apps, it never floats over the keyboard: it is hidden while the
+/// user types, and comes back when the keyboard closes (Done, scroll, or tap away).
+struct BottomActionButton: View {
+    let title: String
+    let isEnabled: Bool
+    var footnote: String? = nil
+    var isTyping = false          // true while the keyboard is open
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if !isTyping {
+                Button(action: action) {
+                    Text(title)
+                        .font(.headline)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(Color.brandOrange)
+                .controlSize(.large)
+                .disabled(!isEnabled)
+
+                if let footnote {
+                    Text(footnote)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isTyping ? 0 : 16)
+        .animation(.smooth, value: isTyping)
+    }
+}
 // MARK: - Day styling (shared by the week strip and the calendar)
 
 enum DayStyle {
@@ -129,15 +167,15 @@ private struct ComponentsPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 32) {
             GoalFormFields(title: $title, duration: $duration, isFocused: $focused)
-
+            
             HStack(spacing: 12) {
                 DayBubble(day: .now, isToday: true, type: nil)
                 DayBubble(day: .now, isToday: false, type: .learned)
                 DayBubble(day: .now, isToday: false, type: .frozen)
                 DayBubble(day: .now, isToday: false, type: nil)
             }
+            
         }
-        .padding(24)
     }
 }
 

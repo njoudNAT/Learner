@@ -4,15 +4,15 @@ import SwiftData
 struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppClock.self) private var clock
-    
+
     @State private var viewModel = OnboardingViewModel()
     @FocusState private var isGoalFieldFocused: Bool
-    
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 header
-                
+
                 GoalFormFields(
                     title: $viewModel.goalTitle,
                     duration: $viewModel.duration,
@@ -26,13 +26,21 @@ struct OnboardingView: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
         .background(Color(.systemBackground))
-        .safeAreaInset(edge: .bottom) { footer }
+        .safeAreaInset(edge: .bottom) {
+            BottomActionButton(
+                title: "Start Learning",
+                isEnabled: viewModel.canStart,
+                footnote: "You can edit your desire later",
+                isTyping: isGoalFieldFocused,
+                action: startLearning
+            )
+        }
         .sensoryFeedback(.success, trigger: viewModel.didStart)
         .sensoryFeedback(.selection, trigger: viewModel.duration)
     }
-    
-    // MARK: - Sections
-    
+
+    // MARK: - Header (as in the Sketch: always visible)
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: "flame.fill")
@@ -42,39 +50,17 @@ struct OnboardingView: View {
                 .padding(.bottom, 24)
                 .accessibilityHidden(true)
                 .modifier(DebugPanelTrigger())
-            
+
             // "Hello" regular, "Learner" bold.
             Text("Hello \(Text("Learner").fontWeight(.bold))")
                 .font(.largeTitle)
-            
+
             Text("This app will help you learn everyday!")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
     }
-    
-    private var footer: some View {
-        VStack(spacing: 12) {
-            Button(action: startLearning) {
-                Text("Start Learning")
-                    .font(.headline)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 6)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(Color.brandOrange)
-            .controlSize(.large)
-            .disabled(!viewModel.canStart)
-            
-            Text("You can edit your desire later")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-    }
-    
-    // MARK: - Actions
+
     // MARK: - Actions
 
     private func startLearning() {
@@ -83,7 +69,7 @@ struct OnboardingView: View {
         // Ask for notification permission right when the user commits to a goal.
         Task { await NotificationService.shared.requestPermission() }
     }
-}   // <- end of OnboardingView
+}
 
 #Preview("Onboarding Flow") {
     RootView()

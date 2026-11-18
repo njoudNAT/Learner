@@ -13,3 +13,4 @@ extension Color {
     static let brandOrange = Color("AppOrange")
     static let brandFreezeBlue = Color("AppFreezeBlue")
 }
+

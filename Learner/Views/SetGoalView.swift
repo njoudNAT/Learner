@@ -1,10 +1,3 @@
-//
-//  SetGoalView.swift
-//  Learner
-//
-//  Created by Njoud Altalal on 05/06/1448 AH.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -12,8 +5,8 @@ import SwiftData
 /// Keep the same goal or choose a new one, then Start Learning.
 struct SetGoalView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(AppClock.self) private var clock
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppClock.self) private var clock
 
     @State private var viewModel: SetGoalViewModel
     @FocusState private var isFocused: Bool
@@ -39,27 +32,20 @@ struct SetGoalView: View {
             .padding(.top, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
         .background(Color(.systemBackground))
         .navigationTitle("Set a goal")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) { footer }
+        .safeAreaInset(edge: .bottom) {
+            BottomActionButton(
+                title: "Start Learning",
+                isEnabled: viewModel.canStart,
+                isTyping: isFocused,
+                action: start
+            )
+        }
         .sensoryFeedback(.success, trigger: viewModel.didStart)
         .sensoryFeedback(.selection, trigger: viewModel.duration)
-    }
-
-    private var footer: some View {
-        Button(action: start) {
-            Text("Start Learning")
-                .font(.headline)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 6)
-        }
-        .buttonStyle(.glassProminent)
-        .tint(Color.brandOrange)
-        .controlSize(.large)
-        .disabled(!viewModel.canStart)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
     }
 
     private func start() {

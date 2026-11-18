@@ -1,8 +1,9 @@
 import SwiftUI
 import SwiftData
 
-/// "Learning Goal" page: pushed, native back chevron, ✓ on the right.
-/// Also used for "Set a goal" after a goal is completed or not met.
+/// "Learning Goal" page: pushed, native back chevron, ✓ on the right (always reachable,
+/// even while typing), plus an "Update goal" button at the bottom when the keyboard is closed.
+/// Only for changing a RUNNING goal. After a goal ends, Activity opens "Set a goal" instead.
 struct GoalEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -26,6 +27,7 @@ struct GoalEditorView: View {
             .padding(.top, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
         .background(Color(.systemBackground))
         .navigationTitle("Learning Goal")
         .navigationBarTitleDisplayMode(.inline)
@@ -41,6 +43,15 @@ struct GoalEditorView: View {
                 .accessibilityLabel("Save goal")
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            BottomActionButton(
+                title: "Update goal",
+                isEnabled: viewModel.canConfirm && !viewModel.showUpdateAlert,
+                isTyping: isFocused,
+                action: confirmTapped
+            )
+        }
+        // The alert is drawn last, so it covers the whole page, including the button.
         .overlay {
             if viewModel.showUpdateAlert {
                 UpdateGoalAlert(

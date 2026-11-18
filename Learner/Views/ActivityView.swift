@@ -343,9 +343,10 @@ private struct EndState: View {
             .controlSize(.large)
             .padding(.top, 8)
 
-            // Only on the day the goal was completed: reverses a mis-tap on the last day.
+            // Well done page only: reverses a mis-tap on the last day, on any later day too.
+            // The "not met" page never passes showsUndo, so it has no undo link.
             if showsUndo {
-                Button("Undo today’s entry", action: onUndo)
+                Button("Undo last entry", action: onUndo)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)

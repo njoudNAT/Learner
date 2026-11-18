@@ -43,14 +43,7 @@ struct GoalEditorView: View {
                 .accessibilityLabel("Save goal")
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            BottomActionButton(
-                title: "Update goal",
-                isEnabled: viewModel.canConfirm && !viewModel.showUpdateAlert,
-                isTyping: isFocused,
-                action: confirmTapped
-            )
-        }
+     
         // The alert is drawn last, so it covers the whole page, including the button.
         .overlay {
             if viewModel.showUpdateAlert {

@@ -20,6 +20,10 @@ final class Goal {
     var startDate: Date
     var status: GoalStatus
 
+    /// Set when a completed goal is reopened by an undo. The 32-hour window restarts from here,
+    /// so the goal does not fail the moment it reopens. Optional, so existing data keeps working.
+    var resumedAt: Date?
+
     // Entries stay when a goal ends, so the calendar keeps all history.
     @Relationship(deleteRule: .nullify, inverse: \DayEntry.goal)
     var entries: [DayEntry] = []

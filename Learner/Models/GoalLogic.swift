@@ -1,4 +1,3 @@
-
 import Foundation
 import SwiftData
 
@@ -24,6 +23,17 @@ extension Goal {
     var frozenCount: Int { entries.filter { $0.type == .frozen }.count }
 
     var freezesRemaining: Int { max(0, duration.maxFreezes - frozenCount) }
+
+    /// The moment the 32-hour window counts from: the last entry (or the goal's start),
+    /// or the moment the goal was last reopened by an undo, whichever is later.
+    func lastActivityDate(excluding excluded: DayEntry? = nil) -> Date {
+        let lastEntry = entries
+            .filter { $0 !== excluded }
+            .map(\.loggedAt)
+            .max() ?? startDate
+
+        return max(lastEntry, resumedAt ?? .distantPast)
+    }
 
     func entry(on date: Date, calendar: Calendar = .current) -> DayEntry? {
         entries.first { calendar.isDate($0.day, inSameDayAs: date) }
@@ -58,10 +68,7 @@ extension Goal {
               let todayEntry = entry(on: now),
               todayEntry.type == type else { return false }
 
-        let previous = entries
-            .filter { $0 !== todayEntry }
-            .map(\.loggedAt)
-            .max() ?? startDate
+        let previous = lastActivityDate(excluding: todayEntry)
 
         return now.timeIntervalSince(previous) <= Rules.streakWindow
     }
@@ -94,7 +101,27 @@ extension Goal {
         refresh(now: now)
     }
 
-    /// Undo from outside the two buttons (used by the "Well done" screen).
+    /// The Well done page can always undo the entry that completed the goal, on any later day.
+    var canUndoCompletion: Bool {
+        status == .completed && !entries.isEmpty
+    }
+
+    /// Removes the entry that completed the goal and reopens it. The 32-hour window restarts
+    /// from now, so a late undo reopens the goal instead of failing it.
+    func undoCompletion(now: Date = .now, in context: ModelContext) {
+        guard canUndoCompletion,
+              let last = entries.max(by: { $0.loggedAt < $1.loggedAt }) else { return }
+
+        entries.removeAll { $0 === last }
+        last.goal = nil
+        context.delete(last)
+
+        status = .active
+        resumedAt = now
+        refresh(now: now)
+    }
+
+    /// Undo from outside the two buttons.
     func undoToday(now: Date = .now, in context: ModelContext) {
         guard let type = entry(on: now)?.type, canUndo(type, now: now) else { return }
         removeTodayEntry(now: now, in: context)
@@ -111,6 +138,7 @@ extension Goal {
         if status == .completed { status = .active }
         refresh(now: now)
     }
+
     private func addEntry(_ type: EntryType, now: Date, in context: ModelContext) {
 
         let newEntry = DayEntry(type: type, at: now)
@@ -136,7 +164,7 @@ extension Goal {
         }
 
         // Failed: more than 32 hours without a learned or frozen day.
-        let last = entries.map(\.loggedAt).max() ?? startDate
+        let last = lastActivityDate()
 
         if now.timeIntervalSince(last) > Rules.streakWindow {
             status = .failed
@@ -152,7 +180,7 @@ extension Goal {
             matchingPolicy: .nextTime
         ) ?? now.addingTimeInterval(3600)
 
-        let last = entries.map(\.loggedAt).max() ?? startDate
+        let last = lastActivityDate()
         let deadline = last.addingTimeInterval(Rules.streakWindow)
 
         return deadline > now ? min(midnight, deadline) : midnight

@@ -53,7 +53,9 @@ final class ActivityViewModel {
     }
 
     func canUndoToday(now: Date) -> Bool {
-        goal.canUndo(.learned, now: now) || goal.canUndo(.frozen, now: now)
+        // Well done page: undo is always there, on any later day too.
+        if goal.status == .completed { return goal.canUndoCompletion }
+        return goal.canUndo(.learned, now: now) || goal.canUndo(.frozen, now: now)
     }
 
     // MARK: - Actions
@@ -69,7 +71,11 @@ final class ActivityViewModel {
     }
 
     func undoToday(clock: AppClock, in modelContext: ModelContext) {
-        goal.undoToday(now: clock.now, in: modelContext)
+        if goal.status == .completed {
+            goal.undoCompletion(now: clock.now, in: modelContext)
+        } else {
+            goal.undoToday(now: clock.now, in: modelContext)
+        }
         syncNotifications(clock: clock)
     }
 
